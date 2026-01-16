@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de Producción y Precio del Petróleo</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100">
+<div id="root"></div>
+
+<script type="text/babel">
+    // Eliminar las constantes globales para evitar conflictos
+    // const { useState, useEffect, useMemo, useRef } = React;
+
+    /* ==================== ICONOS ==================== */
+    const TrendingUpIcon = () => (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+            <polyline points="17 6 23 6 23 12"></polyline>
+        </svg>
+    );
+
+    const DollarIcon = () => (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="1" x2="12" y2="23"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+    );
+
+    const ActivityIcon = () => (
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+    );
+
+    /* ==================== COMPONENTES DE GRÁFICOS ==================== */
+    function GraficoLinea({ labels, data, label, color }) {
+        const ref = React.useRef(null);
+        const chartRef = React.useRef(null);
+
+        React.useEffect(() => {
+            if (chartRef.current) {
+                chartRef.current.destroy();
+            }
+
+            chartRef.current = new Chart(ref.current, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label,
+                        data,
+                        borderColor: color || '#3b82f6',
+                        backgroundColor: (color || '#3b82f6') + '20',
+                        borderWidth: 2,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+
+            return () => {
+                if (chartRef.current) {
+                    chartRef.current.destroy();
+                }
+            };
+        }, [labels, data, label, color]);
+
+        return <canvas ref={ref}></canvas>;
+    }
+
+    function GraficoBarras({ labels, data, label, color }) {
+        const ref = React.useRef(null);
+        const chartRef = React.useRef(null);
+
+        React.useEffect(() => {
+            if (chartRef.current) {
+                chartRef.current.destroy();
+            }
+
+            chartRef.current = new Chart(ref.current, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label,
+                        data,
+                        backgroundColor: color || '#3b82f6',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+
+            return () => {
+                if (chartRef.current) {
+                    chartRef.current.destroy();
+                }
+            };
+        }, [labels, data, label, color]);
+
+        return <canvas ref={ref}></canvas>;
+    }
+
+    /* ==================== FUNCIONES ESTADÍSTICAS ==================== */
+    function calcularEstadisticos(valores) {
+        if (!valores || valores.length === 0) return null;
+
+        const n = valores.length;
+        const sorted = [...valores].sort((a, b) => a - b);
+        const media = valores.reduce((a, b) => a + b, 0) / n;
+        const mediana = n % 2 === 0 ? (sorted[n/2-1] + sorted[n/2]) / 2 : sorted[Math.floor(n/2)];
+
+        const frecuencias = {};
+        valores.forEach(v => frecuencias[v] = (frecuencias[v] || 0) + 1);
+        const maxFrec = Math.max(...Object.values(frecuencias));
+        const moda = parseFloat(Object.keys(frecuencias).find(k => frecuencias[k] === maxFrec));
+
+        const varianza = valores.reduce((acc, v) => acc + Math.pow(v - media, 2), 0) / (n - 1);
+        const desviacion = Math.sqrt(varianza);
+
+        return { media, mediana, moda, desviacion, varianza, min: sorted[0], max: sorted[n-1] };
+    }
+
+    function calcularTablaFrecuencia(valores) {
+        if (!valores || valores.length === 0) return [];
+
+        const n = valores.length;
+        let k = 1;
+        while (Math.pow(2, k) < n) k++;
+
+        const min = Math.min(...valores);
+        const max = Math.max(...valores);
+        const ancho = (max - min) / k;
+
+        let clases = [];
+        for (let i = 0; i < k; i++) {
+            const inf = min + i * ancho;
+            const sup = inf + ancho;
+            const frecAbs = valores.filter(v =>
+                i === k - 1 ? (v >= inf && v <= sup) : (v >= inf && v < sup)
+            ).length;
+
+            clases.push({
+                clase: `${inf.toFixed(2)} - ${sup.toFixed(2)}`,
+                marca: ((inf + sup) / 2).toFixed(2),
+                frecAbs: frecAbs,
+                frecRel: (frecAbs / n).toFixed(4)
+            });
+        }
+
+        let acum = 0;
+        clases.forEach(c => {
+            acum += c.frecAbs;
+            c.frecAcum = acum;
+        });
+
+        return clases;
+    }
+
+    /* ==================== COMPONENTES UI ==================== */
+    function StatCard({ titulo, valor, Icon, color }) {
+        return (
+            <div className={`bg-white rounded-lg shadow p-4 border-l-4 ${color}`}>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-gray-500 text-sm">{titulo}</p>
+                        <p className="text-2xl font-bold mt-1">{valor}</p>
+                    </div>
+                    <div className="text-gray-400">
+                        <Icon />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    function TablaFrecuencias({ datos, tipo }) {
+        return (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600">
+                    <h3 className="text-white font-bold text-lg">Tabla de Frecuencias - {tipo}</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clase</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frec. Abs.</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frec. Rel.</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frec. Acum.</th>
+                        </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                        {datos.map((fila, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">{fila.clase}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">{fila.marca}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{fila.frecAbs}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">{fila.frecRel}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">{fila.frecAcum}</td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    /* ==================== COMPONENTE PRINCIPAL ==================== */
+    function AnalisisPetroleo() {
+        const [datos, setDatos] = React.useState(null);
+        const [cargando, setCargando] = React.useState(true);
+        const [error, setError] = React.useState(null);
+        const [anioSeleccionado, setAnioSeleccionado] = React.useState('2018');
+        const [mesSeleccionado, setMesSeleccionado] = React.useState(0);
+        const [vistaActual, setVistaActual] = React.useState('mes');
+
+        React.useEffect(() => {
+            fetch("datos.json")
+                .then(r => {
+                    if (!r.ok) throw new Error('No se pudo cargar datos.json');
+                    return r.json();
+                })
+                .then(d => {
+                    console.log('Datos cargados:', d);
+                    setDatos(d);
+                    setCargando(false);
+                })
+                .catch(err => {
+                    console.error('Error:', err);
+                    setError(err.message);
+                    setCargando(false);
+                });
+        }, []);
+
+        if (cargando) {
+            return (
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600 text-lg">Cargando datos...</p>
+                    </div>
+                </div>
+            );
+        }
+
+        if (error) {
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="bg-red-50 border-l-4 border-red-400 p-6 rounded max-w-2xl">
+                        <h3 className="text-red-800 font-bold text-lg mb-2"> Error al cargar datos</h3>
+                        <p className="text-red-700 mb-4">{error}</p>
+                        <div className="bg-white p-4 rounded">
+                            <p className="font-semibold mb-2">Soluciones:</p>
+                            <ol className="list-decimal list-inside space-y-1 text-sm">
+                                <li>Ejecuta: <code className="bg-gray-100 px-2 py-1 rounded">python generar_json.py</code></li>
+                                <li>Inicia servidor desde carpeta web: <code className="bg-gray-100 px-2 py-1 rounded">python -m http.server 8000</code></li>
+                                <li>Abre: <code className="bg-gray-100 px-2 py-1 rounded">http://localhost:8000</code></li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const aniosDisponibles = Object.keys(datos);
+        const mesesDelAnio = datos[anioSeleccionado] || [];
+        const datosMes = mesesDelAnio[mesSeleccionado] || { dias: [], produccion: [], gastos: [] };
+
+        // Calcular datos anuales (sin useMemo para evitar el error)
+        let datosAnuales = { produccion: [], gastos: [] };
+        if (datos && datos[anioSeleccionado]) {
+            const meses = datos[anioSeleccionado];
+            datosAnuales = {
+                produccion: meses.flatMap(m => m.produccion || []),
+                gastos: meses.flatMap(m => m.gastos || [])
+            };
+        }
+
+        const datosActuales = vistaActual === 'mes'
+            ? { produccion: datosMes.produccion, gastos: datosMes.gastos }
+            : datosAnuales;
+
+        const statsProd = datosActuales.produccion.length > 0 ? calcularEstadisticos(datosActuales.produccion) : null;
+        const statsGastos = datosActuales.gastos.length > 0 ? calcularEstadisticos(datosActuales.gastos) : null;
+
+        const tablaProd = datosActuales.produccion.length > 0 ? calcularTablaFrecuencia(datosActuales.produccion) : [];
+        const tablaGastos = datosActuales.gastos.length > 0 ? calcularTablaFrecuencia(datosActuales.gastos) : [];
+
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
+                    <div className="max-w-7xl mx-auto px-4 py-6">
+                        <h1 className="text-3xl font-bold"> Análisis de Producción y Precio del Petróleo</h1>
+                        <p className="text-blue-100 mt-2">Sistema de análisis estadístico de datos petroleros</p>
+                    </div>
+                </div>
+
+                <div className="max-w-7xl mx-auto px-4 py-8">
+                    {/* Controles */}
+                    <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Análisis</label>
+                                <select
+                                    value={vistaActual}
+                                    onChange={(e) => setVistaActual(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="mes">Por Mes</option>
+                                    <option value="anual">Análisis Anual</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Año</label>
+                                <select
+                                    value={anioSeleccionado}
+                                    onChange={(e) => { setAnioSeleccionado(e.target.value); setMesSeleccionado(0); }}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {aniosDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
+                                </select>
+                            </div>
+
+                            {vistaActual === 'mes' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Mes</label>
+                                    <select
+                                        value={mesSeleccionado}
+                                        onChange={(e) => setMesSeleccionado(parseInt(e.target.value))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        disabled={mesesDelAnio.length === 0}
+                                    >
+                                        {mesesDelAnio.length > 0 ? (
+                                            mesesDelAnio.map((m, i) => <option key={i} value={i}>{m.mes}</option>)
+                                        ) : (
+                                            <option>No hay datos</option>
+                                        )}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {datosActuales.produccion.length === 0 ? (
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                            <p className="text-sm text-yellow-700">
+                                 No hay datos disponibles. Ejecuta <code className="bg-yellow-100 px-2 py-1 rounded">python generar_json.py</code>
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Estadísticos Producción */}
+                            <div className="mb-8">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                                    <TrendingUpIcon /> <span className="ml-2">Estadísticos de Producción</span>
+                                </h2>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <StatCard titulo="Media" valor={statsProd.media.toFixed(2)} Icon={ActivityIcon} color="border-blue-500" />
+                                    <StatCard titulo="Mediana" valor={statsProd.mediana.toFixed(2)} Icon={ActivityIcon} color="border-green-500" />
+                                    <StatCard titulo="Desv. Estándar" valor={statsProd.desviacion.toFixed(2)} Icon={ActivityIcon} color="border-purple-500" />
+                                    <StatCard titulo="Rango" valor={`${statsProd.min.toFixed(0)} - ${statsProd.max.toFixed(0)}`} Icon={ActivityIcon} color="border-orange-500" />
+                                </div>
+                            </div>
+
+                            {/* Estadísticos Precio */}
+                            <div className="mb-8">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                                    <DollarIcon /> <span className="ml-2">Estadísticos de Precio</span>
+                                </h2>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <StatCard titulo="Media" valor={`$${statsGastos.media.toFixed(2)}`} Icon={DollarIcon} color="border-blue-500" />
+                                    <StatCard titulo="Mediana" valor={`$${statsGastos.mediana.toFixed(2)}`} Icon={DollarIcon} color="border-green-500" />
+                                    <StatCard titulo="Desv. Estándar" valor={`$${statsGastos.desviacion.toFixed(2)}`} Icon={DollarIcon} color="border-purple-500" />
+                                    <StatCard titulo="Rango" valor={`$${statsGastos.min.toFixed(2)} - $${statsGastos.max.toFixed(2)}`} Icon={DollarIcon} color="border-orange-500" />
+                                </div>
+                            </div>
+
+                            {/* Gráficos de Línea */}
+                            {vistaActual === 'mes' && datosMes.dias.length > 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                                    <div className="bg-white rounded-lg shadow-md p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-4">Producción Diaria</h3>
+                                        <div style={{height: '300px'}}>
+                                            <GraficoLinea
+                                                labels={datosMes.dias.map(d => `Día ${d}`)}
+                                                data={datosMes.produccion}
+                                                label="Producción"
+                                                color="#3b82f6"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg shadow-md p-6">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-4">Precio Diario</h3>
+                                        <div style={{height: '300px'}}>
+                                            <GraficoLinea
+                                                labels={datosMes.dias.map(d => `Día ${d}`)}
+                                                data={datosMes.gastos}
+                                                label="Precio ($)"
+                                                color="#10b981"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Histogramas */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                                <div className="bg-white rounded-lg shadow-md p-6">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4">Histograma - Producción</h3>
+                                    <div style={{height: '300px'}}>
+                                        <GraficoBarras
+                                            labels={tablaProd.map(t => t.clase)}
+                                            data={tablaProd.map(t => t.frecAbs)}
+                                            label="Frecuencia"
+                                            color="#3b82f6"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-md p-6">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4">Histograma - Precio</h3>
+                                    <div style={{height: '300px'}}>
+                                        <GraficoBarras
+                                            labels={tablaGastos.map(t => t.clase)}
+                                            data={tablaGastos.map(t => t.frecAbs)}
+                                            label="Frecuencia"
+                                            color="#10b981"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tablas de Frecuencia */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <TablaFrecuencias datos={tablaProd} tipo="Producción" />
+                                <TablaFrecuencias datos={tablaGastos} tipo="Precio" />
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    /* ==================== RENDER ==================== */
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<AnalisisPetroleo />);
+</script>
+</body>
+</html>

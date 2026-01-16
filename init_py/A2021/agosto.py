@@ -1,6 +1,6 @@
 from init_py.domain.datos import DatosAnio
 
-meses = ['Agosto']*31  # poner todos los días reales
+meses = ['Agosto']*31
 dias = list(range(1, 32))
 produccion = [468113.87,
               470916.82,

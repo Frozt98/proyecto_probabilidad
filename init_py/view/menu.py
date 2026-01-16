@@ -1,13 +1,8 @@
-
-
 from init_py.domain.frecuencia import TablaFrecuencia
 import pandas as pd
 
 class Menu:
     def __init__(self, lista_anios):
-        """
-        lista_anios: lista de tuplas ("Año", lista_de_objetos_mes)
-        """
         self.lista_anios = lista_anios
 
     def mostrar_menu(self):
@@ -58,12 +53,12 @@ class Menu:
         # Mostrar histograma
         tf_prod.graficar_histograma(title=f'Producción - {df_filtrado["Mes"].iloc[0]} {mes_obj.anio}')
 
-        # Costo de petroleo - intentar con diferentes nombres posibles
+        # Costo de petroleo
         print("\n--- Costo del petroleo ---")
 
         # Intentar encontrar la columna correcta
         columna_costo = None
-        posibles_nombres = ['Costo de petroleo', 'Costo del petroleo', 'Gastos', 'Costo', 'Precio']
+        posibles_nombres = ['Costo de petroleo', 'Precio del petroleo', 'Gastos', 'Costo', 'Precio']
 
         for nombre in posibles_nombres:
             if nombre in df_filtrado.columns:
@@ -80,10 +75,10 @@ class Menu:
         tf_costo.crear_tabla_frecuencia()
 
         # Mostrar tabla gráfica
-        tf_costo.mostrar_tabla_grafica(title=f'Tabla de Frecuencias - Costo del petroleo ({df_filtrado["Mes"].iloc[0]} {mes_obj.anio})')
+        tf_costo.mostrar_tabla_grafica(title=f'Tabla de Frecuencias - Precio del petroleo ({df_filtrado["Mes"].iloc[0]} {mes_obj.anio})')
 
         # Mostrar histograma
-        tf_costo.graficar_histograma(title=f'Costo del petroleo - {df_filtrado["Mes"].iloc[0]} {mes_obj.anio}')
+        tf_costo.graficar_histograma(title=f'Precio del petroleo - {df_filtrado["Mes"].iloc[0]} {mes_obj.anio}')
 
     def seleccionar_anio_anual(self):
         print("\nSelecciona un año para análisis anual:")
@@ -111,11 +106,11 @@ class Menu:
         tf_prod.graficar_histograma(title=f'Producción - Año completo {anio_str}')
 
         # Costo de petroleo - intentar con diferentes nombres posibles
-        print(f"\n--- Costo del petroleo - Año completo {anio_str} ---")
+        print(f"\n--- Precio del petroleo - Año completo {anio_str} ---")
 
         # Intentar encontrar la columna correcta
         columna_costo = None
-        posibles_nombres = ['Costo de petroleo', 'Costo del petroleo', 'Gastos', 'Costo']
+        posibles_nombres = ['Precio de petroleo', 'Costo del petroleo', 'Gastos', 'Costo']
 
         for nombre in posibles_nombres:
             if nombre in df_anual.columns:
@@ -132,7 +127,7 @@ class Menu:
         tf_costo.crear_tabla_frecuencia()
 
         # Mostrar tabla gráfica
-        tf_costo.mostrar_tabla_grafica(title=f'Tabla de Frecuencias - Costo del petroleo (Año {anio_str})')
+        tf_costo.mostrar_tabla_grafica(title=f'Tabla de Frecuencias - Precio del petroleo (Año {anio_str})')
 
         # Mostrar histograma
-        tf_costo.graficar_histograma(title=f'Costo del petroleo - Año completo {anio_str}')
+        tf_costo.graficar_histograma(title=f'Precio del petroleo - Año completo {anio_str}')

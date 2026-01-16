@@ -1,4 +1,3 @@
-
 from init_py.view.menu import Menu
 
 # Importar listas de meses de cada año

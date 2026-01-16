@@ -1,4 +1,3 @@
-# frecuencia.py
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -115,7 +114,6 @@ class TablaFrecuencia:
 
         stats_dict = self.calcular_estadisticos()
 
-        # Formatear las estadísticas en una línea horizontal
         stats_text = (
             f"Media: {stats_dict['media']:.2f}  |  "
             f"Mediana: {stats_dict['mediana']:.2f}  |  "
